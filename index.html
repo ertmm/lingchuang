@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>斜纹水印 · 可滑动任务栏 · 自定义弹窗</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    /* ===== 全局防选中 + 禁止复制 ===== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    input, textarea, .text-input input {
+      -webkit-user-select: text;
+      -moz-user-select: text;
+      -ms-user-select: text;
+      user-select: text;
+    }
+    input[type="color"], input[type="range"] {
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+    img, canvas {
+      -webkit-user-drag: none;
+      user-drag: none;
+      pointer-events: auto;
+    }
+    body {
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+      background: radial-gradient(circle at 20% 30%, #1f2b45, #0b111f);
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .glass-card {
+      max-width: 1200px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border-radius: 48px;
+      padding: 28px 30px 38px;
+      box-shadow: 0 30px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      position: relative;
+      overflow: hidden;
+    }
+    .glass-card::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle at 30% 40%, rgba(255,255,255,0.02), transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .glass-card > * { position: relative; z-index: 1; }
+    h1 {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-weight: 350;
+      font-size: 2rem;
+      color: rgba(255,255,255,0.9);
+      text-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      margin-bottom: 22px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      letter-spacing: 0.5px;
+    }
+    h1 i { color: #b7ceff; font-size: 2rem; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); }
+    .main-layout {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 28px;
+    }
+    .control-panel {
+      flex: 1.1;
+      min-width: 270px;
+      background: rgba(255,255,255,0.04);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 36px;
+      padding: 24px 22px;
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: inset 0 0 30px rgba(0,0,0,0.2);
+    }
+    .control-group { display: flex; flex-direction: column; gap: 22px; }
+    .upload-area {
+      background: rgba(255,255,255,0.02);
+      border-radius: 32px;
+      padding: 22px 14px;
+      border: 1px dashed rgba(255,255,255,0.2);
+      text-align: center;
+      transition: 0.25s;
+      cursor: pointer;
+    }
+    .upload-area:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.5); }
+    .upload-area i { font-size: 2.8rem; color: #b7ceff; opacity: 0.7; margin-bottom: 4px; }
+    .upload-area p { color: rgba(255,255,255,0.6); font-weight: 300; font-size: 0.95rem; }
+    .file-name { color: rgba(255,255,255,0.3); font-size: 0.75rem; margin-top: 6px; }
+    #fileInput { display: none; }
+    .text-input {
+      background: rgba(255,255,255,0.03);
+      border-radius: 60px;
+      padding: 0 4px 0 22px;
+      display: flex;
+      align-items: center;
+      border: 1px solid rgba(255,255,255,0.08);
+      transition: 0.2s;
+    }
+    .text-input:focus-within { border-color: #8aadff; box-shadow: 0 0 0 4px rgba(138,173,255,0.15); }
+    .text-input i { color: rgba(255,255,255,0.3); font-size: 1rem; }
+    .text-input input {
+      background: transparent;
+      border: none;
+      padding: 14px 14px;
+      width: 100%;
+      color: white;
+      font-size: 1rem;
+      font-weight: 300;
+      outline: none;
+    }
+    .text-input input::placeholder { color: rgba(255,255,255,0.2); }
+    .density-control {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 4px 6px 4px 16px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 60px;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .density-control label {
+      color: rgba(255,255,255,0.5);
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+    .density-control input[type="range"] {
+      flex: 1;
+      -webkit-appearance: none;
+      background: transparent;
+      height: 4px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 4px;
+      outline: none;
+    }
+    .density-control input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      background: #b7ceff;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 0 16px rgba(183,206,255,0.3);
+      border: 2px solid rgba(255,255,255,0.2);
+    }
+    .density-value { color: white; min-width: 32px; text-align: center; font-weight: 400; font-size: 0.9rem; }
+    .action-row {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .action-btn {
+      flex: 1;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 60px;
+      padding: 14px 16px;
+      color: white;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: 0.25s;
+      backdrop-filter: blur(4px);
+      min-width: 120px;
+    }
+    .action-btn i { color: #b7ceff; font-size: 1.1rem; }
+    .action-btn:hover { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.25); transform: scale(0.97); box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+    .action-btn:active { transform: scale(0.93); }
+    .action-btn.primary { background: rgba(138,173,255,0.15); border-color: rgba(138,173,255,0.2); }
+    .action-btn.primary:hover { background: rgba(138,173,255,0.25); }
+    .preview-panel {
+      flex: 2.2;
+      min-width: 340px;
+      background: rgba(0,0,0,0.2);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 36px;
+      padding: 22px;
+      border: 1px solid rgba(255,255,255,0.05);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 0 50px rgba(0,0,0,0.6);
+      min-height: 420px;
+    }
+    .canvas-wrapper {
+      position: relative;
+      width: 100%;
+      border-radius: 28px;
+      overflow: hidden;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.8);
+      background: #0b111e;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    #resultCanvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: 70vh;
+      object-fit: contain;
+      background: #101826;
+      image-rendering: auto;
+    }
+    .badge-row {
+      margin-top: 16px;
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      color: rgba(255,255,255,0.15);
+      font-size: 0.75rem;
+      letter-spacing: 1px;
+      padding: 0 6px;
+    }
+    .badge-row i { margin-right: 6px; }
+
+    /* ===== 可滑动任务栏 (自由滑动) ===== */
+    .taskbar-wrapper {
+      position: fixed;
+      bottom: 30px;
+      left: 0;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 999;
+      padding: 0 20px;
+    }
+    .taskbar-overlay {
+      pointer-events: auto;
+      background: rgba(20, 28, 45, 0.75);
+      backdrop-filter: blur(24px) saturate(200%);
+      -webkit-backdrop-filter: blur(24px) saturate(200%);
+      border-radius: 60px;
+      padding: 12px 28px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+      display: inline-flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: nowrap;
+      justify-content: center;
+      transition: box-shadow 0.3s ease;
+      min-height: 60px;
+      cursor: grab;
+      touch-action: none;
+      will-change: transform;
+      position: relative;
+      max-width: calc(100% - 40px);
+    }
+    .taskbar-overlay:active {
+      cursor: grabbing;
+    }
+    .taskbar-overlay:hover {
+      background: rgba(20, 28, 45, 0.85);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+    .task-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: rgba(255,255,255,0.7);
+      font-size: 0.85rem;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .task-item i { 
+      color: #b7ceff; 
+      font-size: 0.95rem; 
+      width: 18px; 
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .task-item .label {
+      color: rgba(255,255,255,0.4);
+      font-size: 0.8rem;
+      min-width: 16px;
+    }
+
+    .color-preview-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.15);
+      cursor: pointer;
+      transition: 0.2s;
+      flex-shrink: 0;
+      box-shadow: 0 0 12px rgba(0,0,0,0.3);
+      background: #ffffff;
+    }
+    .color-preview-btn:hover {
+      border-color: rgba(255,255,255,0.4);
+      transform: scale(1.06);
+      box-shadow: 0 0 20px rgba(183,206,255,0.2);
+    }
+
+    .task-divider {
+      width: 1px;
+      height: 30px;
+      background: rgba(255,255,255,0.06);
+      flex-shrink: 0;
+    }
+
+    .task-btn {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 40px;
+      padding: 7px 20px;
+      color: white;
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: 0.2s;
+      backdrop-filter: blur(4px);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .task-btn:hover { 
+      background: rgba(255,255,255,0.12); 
+      border-color: rgba(255,255,255,0.2); 
+      transform: scale(0.96); 
+    }
+    .task-btn i { color: #b7ceff; font-size: 0.9rem; }
+
+    .task-item input[type="range"] {
+      -webkit-appearance: none;
+      width: 80px;
+      height: 4px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 4px;
+      outline: none;
+      transition: 0.2s;
+      flex-shrink: 0;
+    }
+    .task-item input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      background: #b7ceff;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 0 12px rgba(183,206,255,0.2);
+      border: 2px solid rgba(255,255,255,0.15);
+    }
+    .task-item .opacity-value {
+      min-width: 36px;
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.5);
+      text-align: center;
+      font-family: monospace;
+      flex-shrink: 0;
+    }
+
+    /* ===== 调色板窗口 ===== */
+    .palette-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      background: rgba(10, 15, 30, 0.45);
+      backdrop-filter: blur(12px) saturate(180%);
+      -webkit-backdrop-filter: blur(12px) saturate(180%);
+    }
+    .palette-overlay.active { display: flex; }
+
+    .palette-modal {
+      background: rgba(25, 33, 50, 0.75);
+      backdrop-filter: blur(24px) saturate(200%);
+      -webkit-backdrop-filter: blur(24px) saturate(200%);
+      border-radius: 48px;
+      padding: 30px 34px 34px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 40px 80px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.03);
+      width: 420px;
+      max-width: 92vw;
+      animation: modalIn 0.2s ease;
+    }
+    @keyframes modalIn {
+      from { opacity: 0; transform: scale(0.92) translateY(16px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .palette-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      color: rgba(255,255,255,0.7);
+    }
+    .palette-header h3 {
+      font-weight: 400;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .palette-header h3 i { color: #b7ceff; }
+    .palette-close {
+      background: rgba(255,255,255,0.04);
+      border: none;
+      color: rgba(255,255,255,0.4);
+      font-size: 1.4rem;
+      cursor: pointer;
+      padding: 4px 10px;
+      border-radius: 30px;
+      transition: 0.2s;
+    }
+    .palette-close:hover { background: rgba(255,255,255,0.08); color: white; }
+
+    .hue-slider-container {
+      width: 100%;
+      height: 36px;
+      border-radius: 30px;
+      overflow: hidden;
+      margin-bottom: 18px;
+      border: 1px solid rgba(255,255,255,0.06);
+      position: relative;
+      background: linear-gradient(to right, 
+        #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+    }
+    .hue-slider-container input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      outline: none;
+      cursor: pointer;
+      position: absolute;
+      top: 0;
+      left: 0;
+      margin: 0;
+    }
+    .hue-slider-container input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 24px;
+      height: 24px;
+      background: white;
+      border-radius: 50%;
+      border: 3px solid rgba(255,255,255,0.4);
+      box-shadow: 0 0 24px rgba(0,0,0,0.6), 0 0 0 2px rgba(255,255,255,0.1);
+      cursor: pointer;
+      margin-top: 6px;
+      transition: 0.1s;
+    }
+    .hue-slider-container input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.08);
+    }
+    .hue-slider-container input[type="range"]::-moz-range-thumb {
+      width: 24px;
+      height: 24px;
+      background: white;
+      border-radius: 50%;
+      border: 3px solid rgba(255,255,255,0.4);
+      cursor: pointer;
+    }
+
+    .sv-container {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: 24px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.06);
+      margin-bottom: 18px;
+      cursor: crosshair;
+      background: #ff0000;
+    }
+    .sv-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .sv-picker-dot {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 0 20px rgba(0,0,0,0.7), 0 0 0 2px rgba(255,255,255,0.2);
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      transition: 0.05s;
+    }
+
+    .palette-footer {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-top: 6px;
+    }
+    .palette-footer .color-hex {
+      flex: 1;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 40px;
+      padding: 10px 18px;
+      color: rgba(255,255,255,0.7);
+      font-size: 0.95rem;
+      font-family: monospace;
+      letter-spacing: 1px;
+      text-align: center;
+    }
+    .palette-footer .confirm-btn {
+      background: rgba(138,173,255,0.15);
+      border: 1px solid rgba(138,173,255,0.2);
+      border-radius: 40px;
+      padding: 10px 28px;
+      color: white;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .palette-footer .confirm-btn:hover {
+      background: rgba(138,173,255,0.25);
+      transform: scale(0.96);
+    }
+
+    /* ===== 自定义消息弹窗 ===== */
+    .custom-toast {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 99999;
+      background: rgba(10, 15, 30, 0.35);
+      backdrop-filter: blur(8px) saturate(180%);
+      -webkit-backdrop-filter: blur(8px) saturate(180%);
+      animation: fadeIn 0.25s ease;
+    }
+    .custom-toast.active { display: flex; }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .toast-box {
+      background: rgba(25, 33, 50, 0.8);
+      backdrop-filter: blur(24px) saturate(200%);
+      -webkit-backdrop-filter: blur(24px) saturate(200%);
+      border-radius: 40px;
+      padding: 32px 40px 28px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 40px 80px rgba(0,0,0,0.8);
+      max-width: 420px;
+      width: 90%;
+      text-align: center;
+      animation: toastPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes toastPop {
+      from { opacity: 0; transform: scale(0.85) translateY(20px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .toast-icon {
+      font-size: 3rem;
+      color: #f0b37b;
+      margin-bottom: 12px;
+      display: block;
+    }
+    .toast-icon i { color: #ffb347; }
+    .toast-title {
+      color: rgba(255,255,255,0.9);
+      font-size: 1.2rem;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+    .toast-message {
+      color: rgba(255,255,255,0.55);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      margin-bottom: 22px;
+    }
+    .toast-btn {
+      background: rgba(138,173,255,0.15);
+      border: 1px solid rgba(138,173,255,0.2);
+      border-radius: 40px;
+      padding: 10px 36px;
+      color: white;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .toast-btn:hover {
+      background: rgba(138,173,255,0.25);
+      transform: scale(0.96);
+    }
+    .toast-btn i { color: #b7ceff; }
+
+    .no-context {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* ===== 滑动指示器 ===== */
+    .drag-indicator {
+      position: absolute;
+      top: -6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 40px;
+      height: 4px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+    .taskbar-overlay:hover .drag-indicator {
+      opacity: 0.6;
+    }
+
+    @media (max-width: 850px) {
+      .taskbar-wrapper { bottom: 16px; padding: 0 10px; }
+      .taskbar-overlay { padding: 10px 16px; gap: 12px; border-radius: 40px; min-height: 50px; }
+      .task-item { font-size: 0.75rem; gap: 4px; }
+      .task-item input[type="range"] { width: 56px; }
+      .task-divider { display: none; }
+      .palette-modal { padding: 24px 20px; width: 95vw; }
+      .toast-box { padding: 24px 20px; }
+    }
+    @media (max-width: 750px) {
+      .glass-card { padding: 18px; }
+      h1 { font-size: 1.6rem; }
+      .control-panel { padding: 18px 14px; }
+      .action-row { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+<div class="glass-card no-context" oncontextmenu="return false;">
+  <h1><i class="fas fa-water"></i> 斜纹水印 · 滑动任务栏</h1>
+  <div class="main-layout">
+    <div class="control-panel">
+      <div class="control-group">
+        <div class="upload-area" id="uploadArea">
+          <i class="fas fa-cloud-upload-alt"></i>
+          <p><span style="font-weight:400; color:white;">点击上传</span> <span style="color:rgba(255,255,255,0.3);">或拖拽</span></p>
+          <div class="file-name" id="fileName">未选择图片</div>
+          <input type="file" id="fileInput" accept="image/*">
+        </div>
+        <div class="text-input">
+          <i class="fas fa-pen-fancy"></i>
+          <input type="text" id="watermarkText" placeholder="输入水印文字..." value="© 斜纹防盗">
+        </div>
+        <div class="density-control">
+          <label><i class="fas fa-th"></i> 密度</label>
+          <input type="range" id="densitySlider" min="0.8" max="4.5" step="0.1" value="2.8">
+          <span class="density-value" id="densityValue">2.8</span>
+        </div>
+        <div class="action-row">
+          <button class="action-btn primary" id="generateBtn"><i class="fas fa-wand-magic-sparkles"></i> 生成</button>
+          <button class="action-btn" id="saveBtn"><i class="fas fa-download"></i> 保存高清</button>
+        </div>
+        <div style="display:flex; gap:16px; justify-content:center; color:rgba(255,255,255,0.15); font-size:0.7rem; margin-top:4px;">
+          <span><i class="fas fa-rotate-right"></i> 斜纹45°</span>
+          <span><i class="fas fa-arrows-alt-h"></i> 全幅平铺</span>
+          <span><i class="fas fa-palette"></i> 滑动选色</span>
+        </div>
+      </div>
+    </div>
+    <div class="preview-panel">
+      <div class="canvas-wrapper">
+        <canvas id="resultCanvas" width="1000" height="700"></canvas>
+      </div>
+      <div class="badge-row">
+        <span><i class="fas fa-vector-square"></i> 高清预览</span>
+        <span><i class="fas fa-lock"></i> 禁止复制</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 可滑动任务栏 ===== -->
+<div class="taskbar-wrapper">
+  <div class="taskbar-overlay no-context" id="taskbar" oncontextmenu="return false;">
+    <div class="drag-indicator"></div>
+    <div class="task-item">
+      <i class="fas fa-palette"></i>
+      <span class="label">色</span>
+      <div class="color-preview-btn" id="colorPreviewBtn" style="background: #ffffff;"></div>
+    </div>
+    <div class="task-divider"></div>
+    <div class="task-item">
+      <i class="fas fa-arrow-rotate-right"></i>
+      <span class="label">透</span>
+      <input type="range" id="opacitySlider" min="0.05" max="0.6" step="0.01" value="0.22">
+      <span class="opacity-value" id="opacityValue">0.22</span>
+    </div>
+    <div class="task-divider"></div>
+    <button class="task-btn" id="resetBtn"><i class="fas fa-undo"></i> 重置</button>
+    <button class="task-btn" id="applyColorBtn"><i class="fas fa-check"></i> 应用</button>
+  </div>
+</div>
+
+<!-- 调色板 -->
+<div class="palette-overlay" id="paletteOverlay">
+  <div class="palette-modal no-context" oncontextmenu="return false;">
+    <div class="palette-header">
+      <h3><i class="fas fa-palette"></i> 选择颜色</h3>
+      <button class="palette-close" id="paletteCloseBtn"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="hue-slider-container">
+      <input type="range" id="hueSlider" min="0" max="360" value="0" step="1">
+    </div>
+    <div class="sv-container" id="svContainer">
+      <canvas class="sv-canvas" id="svCanvas" width="400" height="400"></canvas>
+      <div class="sv-picker-dot" id="svPickerDot" style="left: 100%; top: 0%;"></div>
+    </div>
+    <div class="palette-footer">
+      <div class="color-hex" id="colorHexDisplay">#ffffff</div>
+      <button class="confirm-btn" id="paletteConfirmBtn"><i class="fas fa-check"></i> 确认</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 自定义消息弹窗 ===== -->
+<div class="custom-toast" id="customToast">
+  <div class="toast-box">
+    <div class="toast-icon"><i class="fas fa-info-circle"></i></div>
+    <div class="toast-title" id="toastTitle">提示</div>
+    <div class="toast-message" id="toastMessage">请先上传一张图片</div>
+    <button class="toast-btn" id="toastBtn"><i class="fas fa-check"></i> 知道了</button>
+  </div>
+</div>
+
+<script>
+  (function() {
+    // ---------- 核心变量 ----------
+    const canvas = document.getElementById('resultCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const fileInput = document.getElementById('fileInput');
+    const uploadArea = document.getElementById('uploadArea');
+    const fileName = document.getElementById('fileName');
+    const watermarkText = document.getElementById('watermarkText');
+    const generateBtn = document.getElementById('generateBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const densitySlider = document.getElementById('densitySlider');
+    const densityValue = document.getElementById('densityValue');
+
+    const opacitySlider = document.getElementById('opacitySlider');
+    const opacityValue = document.getElementById('opacityValue');
+    const applyColorBtn = document.getElementById('applyColorBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const colorPreviewBtn = document.getElementById('colorPreviewBtn');
+
+    const paletteOverlay = document.getElementById('paletteOverlay');
+    const paletteCloseBtn = document.getElementById('paletteCloseBtn');
+    const paletteConfirmBtn = document.getElementById('paletteConfirmBtn');
+    const hueSlider = document.getElementById('hueSlider');
+    const svCanvas = document.getElementById('svCanvas');
+    const svCtx = svCanvas.getContext('2d');
+    const svContainer = document.getElementById('svContainer');
+    const svPickerDot = document.getElementById('svPickerDot');
+    const colorHexDisplay = document.getElementById('colorHexDisplay');
+
+    const customToast = document.getElementById('customToast');
+    const toastTitle = document.getElementById('toastTitle');
+    const toastMessage = document.getElementById('toastMessage');
+    const toastBtn = document.getElementById('toastBtn');
+
+    let currentImage = null;
+    let currentColor = '#ffffff';
+    let currentOpacity = 0.22;
+
+    let selectedHue = 0;
+    let selectedS = 1.0;
+    let selectedV = 1.0;
+    let isDraggingSV = false;
+
+    // ===== 任务栏滑动逻辑 =====
+    const taskbar = document.getElementById('taskbar');
+    let isDragging = false;
+    let startX = 0;
+    let currentX = 0;
+    let translateX = 0;
+    let velocity = 0;
+    let animationId = null;
+    let lastMoveTime = 0;
+    let lastMoveX = 0;
+
+    function getBoundary() {
+      const wrapper = taskbar.parentElement;
+      const wrapperRect = wrapper.getBoundingClientRect();
+      const taskbarRect = taskbar.getBoundingClientRect();
+      const maxTranslate = (wrapperRect.width - taskbarRect.width) / 2;
+      return { min: -maxTranslate, max: maxTranslate };
+    }
+
+    function clampTranslate(val) {
+      const bound = getBoundary();
+      return Math.min(bound.max, Math.max(bound.min, val));
+    }
+
+    function applyTranslate(val) {
+      translateX = clampTranslate(val);
+      taskbar.style.transform = `translateX(${translateX}px)`;
+    }
+
+    // 惯性动画
+    function startInertia() {
+      if (animationId) cancelAnimationFrame(animationId);
+      
+      function animate() {
+        if (Math.abs(velocity) < 0.5) {
+          velocity = 0;
+          animationId = null;
+          return;
+        }
+        velocity *= 0.92; // 阻尼
+        let newTranslate = translateX + velocity;
+        const bound = getBoundary();
+        if (newTranslate < bound.min || newTranslate > bound.max) {
+          velocity *= -0.3;
+          newTranslate = clampTranslate(newTranslate);
+        }
+        applyTranslate(newTranslate);
+        animationId = requestAnimationFrame(animate);
+      }
+      animationId = requestAnimationFrame(animate);
+    }
+
+    // 鼠标/触摸事件
+    function onStart(clientX) {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+      }
+      isDragging = true;
+      startX = clientX;
+      currentX = translateX;
+      velocity = 0;
+      taskbar.style.cursor = 'grabbing';
+      taskbar.style.transition = 'none';
+    }
+
+    function onMove(clientX) {
+      if (!isDragging) return;
+      const delta = clientX - startX;
+      const newTranslate = currentX + delta;
+      applyTranslate(newTranslate);
+      // 计算速度
+      const now = Date.now();
+      if (now - lastMoveTime > 16) {
+        velocity = (clientX - lastMoveX) * 0.5;
+        lastMoveX = clientX;
+        lastMoveTime = now;
+      }
+    }
+
+    function onEnd() {
+      if (!isDragging) return;
+      isDragging = false;
+      taskbar.style.cursor = 'grab';
+      taskbar.style.transition = '';
+      // 惯性滑动
+      if (Math.abs(velocity) > 2) {
+        startInertia();
+      } else {
+        // 回弹到边界
+        const bound = getBoundary();
+        if (translateX < bound.min || translateX > bound.max) {
+          applyTranslate(clampTranslate(translateX));
+        }
+      }
+    }
+
+    // 鼠标事件
+    taskbar.addEventListener('mousedown', (e) => {
+      if (e.target.closest('button') || e.target.closest('input') || e.target.closest('.color-preview-btn')) return;
+      onStart(e.clientX);
+    });
+    window.addEventListener('mousemove', (e) => {
+      onMove(e.clientX);
+    });
+    window.addEventListener('mouseup', () => {
+      onEnd();
+    });
+
+    // 触摸事件
+    taskbar.addEventListener('touchstart', (e) => {
+      if (e.target.closest('button') || e.target.closest('input') || e.target.closest('.color-preview-btn')) return;
+      const touch = e.touches[0];
+      onStart(touch.clientX);
+    }, { passive: true });
+    window.addEventListener('touchmove', (e) => {
+      const touch = e.touches[0];
+      onMove(touch.clientX);
+    }, { passive: true });
+    window.addEventListener('touchend', () => {
+      onEnd();
+    }, { passive: true });
+
+    // 窗口大小变化时重新计算边界
+    window.addEventListener('resize', () => {
+      applyTranslate(translateX);
+    });
+
+    // ---------- 自定义弹窗 ----------
+    function showToast(title, message) {
+      toastTitle.textContent = title || '提示';
+      toastMessage.textContent = message || '请先上传一张图片';
+      customToast.classList.add('active');
+    }
+    function hideToast() {
+      customToast.classList.remove('active');
+    }
+    toastBtn.addEventListener('click', hideToast);
+    customToast.addEventListener('click', function(e) {
+      if (e.target === this) hideToast();
+    });
+
+    // ---------- 显示更新 ----------
+    densitySlider.addEventListener('input', function() {
+      densityValue.textContent = parseFloat(this.value).toFixed(1);
+    });
+    opacitySlider.addEventListener('input', function() {
+      opacityValue.textContent = parseFloat(this.value).toFixed(2);
+    });
+
+    // ---------- 核心绘制 ----------
+    function drawWatermark(img, text, densityFactor, colorHex, opacity) {
+      const imgWidth = img.width;
+      const imgHeight = img.height;
+      let w = imgWidth, h = imgHeight;
+      const MAX_W = 1600, MAX_H = 1200;
+      if (w > MAX_W || h > MAX_H) {
+        const ratio = Math.min(MAX_W / w, MAX_H / h);
+        w = Math.floor(w * ratio);
+        h = Math.floor(h * ratio);
+      }
+      if (w < 800 && imgWidth > 800) {
+        const ratio = 800 / w;
+        w = Math.floor(w * ratio);
+        h = Math.floor(h * ratio);
+      }
+      canvas.width = w;
+      canvas.height = h;
+      ctx.drawImage(img, 0, 0, w, h);
+
+      const finalText = text.trim() || '© 斜纹';
+      if (!finalText) return;
+
+      const baseSize = Math.max(14, w / 22);
+      const scale = 1.0 / Math.sqrt(densityFactor);
+      const fontSize = Math.max(10, baseSize * scale * 0.85);
+      ctx.font = `${fontSize}px "Segoe UI", "Roboto", system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.globalAlpha = opacity;
+      ctx.fillStyle = colorHex;
+
+      const metrics = ctx.measureText(finalText);
+      const textWidth = metrics.width || fontSize * 1.2;
+      const gapBaseX = textWidth * 2.4;
+      const gapBaseY = fontSize * 3.0;
+      const gapX = gapBaseX / Math.sqrt(densityFactor);
+      const gapY = gapBaseY / Math.sqrt(densityFactor);
+      const angle = -Math.PI / 4;
+
+      ctx.save();
+      ctx.translate(w / 2, h / 2);
+      ctx.rotate(angle);
+      ctx.translate(-w / 2, -h / 2);
+
+      const extraCols = 6, extraRows = 6;
+      const cols = Math.ceil(w / gapX) + extraCols;
+      const rows = Math.ceil(h / gapY) + extraRows;
+      const offsetX = (w - (cols - 1) * gapX) / 2;
+      const offsetY = (h - (rows - 1) * gapY) / 2;
+
+      ctx.shadowColor = 'rgba(0,0,0,0.25)';
+      ctx.shadowBlur = 6;
+      ctx.shadowOffsetX = 1;
+      ctx.shadowOffsetY = 2;
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const x = offsetX + c * gapX;
+          const y = offsetY + r * gapY;
+          ctx.fillText(finalText, x, y);
+        }
+      }
+      ctx.restore();
+      ctx.globalAlpha = 1.0;
+      ctx.shadowBlur = 0;
+    }
+
+    function updateCanvas() {
+      if (!currentImage) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#131b2b';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.font = '26px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('⬆ 上传图片', canvas.width/2, canvas.height/2 - 12);
+        ctx.font = '16px sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.06)';
+        ctx.fillText('全幅斜纹 · 滑动任务栏', canvas.width/2, canvas.height/2 + 40);
+        return;
+      }
+      const text = watermarkText.value || '© 斜纹';
+      const density = parseFloat(densitySlider.value) || 2.8;
+      drawWatermark(currentImage, text, density, currentColor, currentOpacity);
+    }
+
+    // ---------- 加载图片 ----------
+    function loadImageFile(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          currentImage = img;
+          fileName.textContent = file.name.length > 24 ? file.name.substr(0, 22) + '…' : file.name;
+          updateCanvas();
+        };
+        img.onerror = function() { 
+          showToast('加载失败', '图片格式不支持，请尝试其他文件'); 
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // ---------- 保存 ----------
+    function saveHighRes() {
+      if (!currentImage) {
+        showToast('提示', '请先上传一张图片再进行保存');
+        return;
+      }
+      const link = document.createElement('a');
+      link.download = `watermark_${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    // ---------- 调色板 ----------
+    function updateSVCanvas(hue) {
+      const w = svCanvas.width, h = svCanvas.height;
+      const imageData = svCtx.createImageData(w, h);
+      const data = imageData.data;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const s = x / w;
+          const v = 1 - y / h;
+          const idx = (y * w + x) * 4;
+          const [r, g, b] = hslToRgb(hue / 360, s, v * 0.5 + 0.5 * v);
+          data[idx] = Math.round(r * 255);
+          data[idx+1] = Math.round(g * 255);
+          data[idx+2] = Math.round(b * 255);
+          data[idx+3] = 255;
+        }
+      }
+      svCtx.putImageData(imageData, 0, 0);
+    }
+
+    function hslToRgb(h, s, l) {
+      let r, g, b;
+      if (s === 0) {
+        r = g = b = l;
+      } else {
+        const hue2rgb = (p, q, t) => {
+          if (t < 0) t += 1;
+          if (t > 1) t -= 1;
+          if (t < 1/6) return p + (q - p) * 6 * t;
+          if (t < 1/2) return q;
+          if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+          return p;
+        };
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+      }
+      return [r, g, b];
+    }
+
+    function getColorFromSV(clientX, clientY) {
+      const rect = svContainer.getBoundingClientRect();
+      let x = clientX - rect.left;
+      let y = clientY - rect.top;
+      x = Math.min(rect.width, Math.max(0, x));
+      y = Math.min(rect.height, Math.max(0, y));
+      const s = x / rect.width;
+      const v = 1 - y / rect.height;
+      const [r, g, b] = hslToRgb(selectedHue / 360, s, v * 0.5 + 0.5 * v);
+      const hex = '#' + [r, g, b].map(c => Math.round(c * 255).toString(16).padStart(2, '0')).join('');
+      return { hex, s, v, x, y };
+    }
+
+    function updateColorPreview(hex) {
+      colorPreviewBtn.style.background = hex;
+    }
+
+    function openPalette() {
+      paletteOverlay.classList.add('active');
+      updateSVCanvas(selectedHue);
+      const rect = svContainer.getBoundingClientRect();
+      const px = selectedS * rect.width;
+      const py = (1 - selectedV) * rect.height;
+      svPickerDot.style.left = px + 'px';
+      svPickerDot.style.top = py + 'px';
+      const [r, g, b] = hslToRgb(selectedHue / 360, selectedS, selectedV * 0.5 + 0.5 * selectedV);
+      const hex = '#' + [r, g, b].map(c => Math.round(c * 255).toString(16).padStart(2, '0')).join('');
+      colorHexDisplay.textContent = hex;
+    }
+
+    function closePalette() {
+      paletteOverlay.classList.remove('active');
+    }
+
+    function confirmColor() {
+      const hex = colorHexDisplay.textContent;
+      currentColor = hex;
+      updateColorPreview(hex);
+      closePalette();
+      if (currentImage) updateCanvas();
+    }
+
+    // ---------- 重置 ----------
+    function resetDefaults() {
+      currentColor = '#ffffff';
+      updateColorPreview('#ffffff');
+      currentOpacity = 0.22;
+      opacitySlider.value = '0.22';
+      opacityValue.textContent = '0.22';
+      selectedHue = 0;
+      selectedS = 1.0;
+      selectedV = 1.0;
+      if (currentImage) updateCanvas();
+      resetBtn.style.transform = 'scale(0.94)';
+      setTimeout(() => { resetBtn.style.transform = ''; }, 150);
+    }
+
+    // ---------- 事件绑定 ----------
+    uploadArea.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', function(e) {
+      if (this.files && this.files[0]) { loadImageFile(this.files[0]); }
+      this.value = '';
+    });
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.style.borderColor = '#aac3ff';
+      uploadArea.style.background = 'rgba(255,255,255,0.08)';
+    });
+    uploadArea.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      uploadArea.style.borderColor = 'rgba(255,255,255,0.2)';
+      uploadArea.style.background = 'rgba(255,255,255,0.02)';
+    });
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.style.borderColor = 'rgba(255,255,255,0.2)';
+      uploadArea.style.background = 'rgba(255,255,255,0.02)';
+      const files = e.dataTransfer.files;
+      if (files && files[0] && files[0].type.startsWith('image/')) {
+        loadImageFile(files[0]);
+      } else { 
+        showToast('提示', '请拖拽图片文件（支持 jpg、png、webp 等格式）'); 
+      }
+    });
+
+    generateBtn.addEventListener('click', function() {
+      if (!currentImage) {
+        showToast('提示', '请先上传一张图片再生成水印');
+        return;
+      }
+      updateCanvas();
+      this.style.transform = 'scale(0.94)';
+      setTimeout(() => { this.style.transform = ''; }, 150);
+    });
+
+    saveBtn.addEventListener('click', saveHighRes);
+    watermarkText.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') { generateBtn.click(); e.preventDefault(); }
+    });
+
+    applyColorBtn.addEventListener('click', function() {
+      if (!currentImage) {
+        showToast('提示', '请先上传一张图片再应用颜色');
+        return;
+      }
+      updateCanvas();
+      this.style.transform = 'scale(0.94)';
+      setTimeout(() => { this.style.transform = ''; }, 150);
+    });
+
+    resetBtn.addEventListener('click', resetDefaults);
+    colorPreviewBtn.addEventListener('click', openPalette);
+    paletteCloseBtn.addEventListener('click', closePalette);
+    paletteOverlay.addEventListener('click', function(e) {
+      if (e.target === this) closePalette();
+    });
+
+    hueSlider.addEventListener('input', function() {
+      selectedHue = parseFloat(this.value);
+      updateSVCanvas(selectedHue);
+      const rect = svContainer.getBoundingClientRect();
+      const px = selectedS * rect.width;
+      const py = (1 - selectedV) * rect.height;
+      const result = getColorFromSV(rect.left + px, rect.top + py);
+      colorHexDisplay.textContent = result.hex;
+    });
+
+    svContainer.addEventListener('mousedown', function(e) {
+      isDraggingSV = true;
+      const result = getColorFromSV(e.clientX, e.clientY);
+      selectedS = result.s;
+      selectedV = result.v;
+      svPickerDot.style.left = result.x + 'px';
+      svPickerDot.style.top = result.y + 'px';
+      colorHexDisplay.textContent = result.hex;
+    });
+    window.addEventListener('mousemove', function(e) {
+      if (isDraggingSV) {
+        const result = getColorFromSV(e.clientX, e.clientY);
+        selectedS = result.s;
+        selectedV = result.v;
+        svPickerDot.style.left = result.x + 'px';
+        svPickerDot.style.top = result.y + 'px';
+        colorHexDisplay.textContent = result.hex;
+      }
+    });
+    window.addEventListener('mouseup', function() {
+      isDraggingSV = false;
+    });
+
+    paletteConfirmBtn.addEventListener('click', confirmColor);
+
+    opacitySlider.addEventListener('input', function() {
+      opacityValue.textContent = parseFloat(this.value).toFixed(2);
+      currentOpacity = parseFloat(this.value);
+      if (currentImage) updateCanvas();
+    });
+
+    densitySlider.addEventListener('input', function() {
+      densityValue.textContent = parseFloat(this.value).toFixed(1);
+    });
+
+    // ---------- 禁止拖拽选中 ----------
+    document.querySelectorAll('img, canvas').forEach(el => {
+      el.addEventListener('dragstart', (e) => e.preventDefault());
+    });
+
+    // ---------- 初始化 ----------
+    (function init() {
+      canvas.width = 1000;
+      canvas.height = 700;
+      ctx.fillStyle = '#131b2b';
+      ctx.fillRect(0, 0, 1000, 700);
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      ctx.font = '26px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('⬆ 上传图片', 500, 340);
+      ctx.font = '16px sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      ctx.fillText('全幅斜纹 · 滑动任务栏', 500, 390);
+      fileName.textContent = '未选择图片';
+      currentColor = '#ffffff';
+      currentOpacity = 0.22;
+      opacitySlider.value = '0.22';
+      opacityValue.textContent = '0.22';
+      updateColorPreview('#ffffff');
+      selectedHue = 0;
+      selectedS = 1.0;
+      selectedV = 1.0;
+      updateSVCanvas(0);
+      setTimeout(() => {
+        const rect = svContainer.getBoundingClientRect();
+        svPickerDot.style.left = rect.width + 'px';
+        svPickerDot.style.top = '0px';
+      }, 50);
+    })();
+
+  })();
+</script>
+</body>
+</html>
